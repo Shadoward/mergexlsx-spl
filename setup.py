@@ -23,7 +23,7 @@ extras_require = {
 
 setup(
     name='mergexlsxspl',
-    version='0.1.0',
+    version='0.2.0',
     description='Merge XLSX from the splsensors tool',
     long_description=readme,
     author='Patrice Ponchant',

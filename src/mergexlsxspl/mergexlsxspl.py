@@ -16,6 +16,7 @@ import pandas as pd
 import glob
 import os, sys
 import datetime
+from xlsxwriter.utility import xl_rowcol_to_cell
 
 ##### GUI packages #####
 from gooey import Gooey, GooeyParser
@@ -32,6 +33,11 @@ from colored import stylize, attr, fg
 if len(sys.argv) >= 2:
     if not '--ignore-gooey' in sys.argv:
         sys.argv.append('--ignore-gooey')
+        
+# Preparing your script for packaging https://chriskiehl.com/article/packaging-gooey-with-pyinstaller
+# Prevent stdout buffering     
+#nonbuffered_stdout = os.fdopen(sys.stdout.fileno(), 'w', 0) #https://stackoverflow.com/questions/45263064/how-can-i-fix-this-valueerror-cant-have-unbuffered-text-i-o-in-python-3/45263101
+#sys.stdout = nonbuffered_stdout
 
 # GUI Configuration
 @Gooey(
@@ -55,7 +61,7 @@ if len(sys.argv) >= 2:
                 'menuTitle': 'About',
                 'name': 'mergexlsx-spl',
                 'description': 'Merge XLSX from the splsensors tool',
-                'version': '0.1.0',
+                'version': '0.2.0',
                 'copyright': '2020',
                 'website': 'https://github.com/Shadoward/mergexlsx-spl',
                 'developer': 'patrice.ponchant@fugro.com',
@@ -97,7 +103,6 @@ def process(args):
     print(f'Merging the following files.\n {excel_names}\nPlease wait.......')
 
     xl = pd.ExcelFile(excel_names[0])
-    lsSH = xl.sheet_names
     d = {name: combine_excel_to_dfs(excel_names, name) for name in xl.sheet_names}
     d['Summary_Process_Log'] = pd.DataFrame()
     
@@ -133,6 +138,15 @@ def process(args):
                                 'font_size': 10,
                                 'valign': 'vcenter',})
 
+    session_format = workbook.add_format({'num_format': '0',
+                                          'text_wrap': True,
+                                          'font_name': 'Segoe UI',
+                                          'font_size': 10,
+                                          'valign': 'vcenter',
+                                          'align': 'left',
+                                          'border_color': '#000000',
+                                          'border': 1})
+    
     cell_format = workbook.add_format({'text_wrap': True,
                                     'font_name': 'Segoe UI',
                                     'font_size': 10,
@@ -152,8 +166,9 @@ def process(args):
                                         'border_color': '#FFFFFF',
                                         'border': 1})
 
-    textFull = [bold, 'Full_List', normal, ': Full log list of all sensors without duplicated and skip files']
-    textMissingSPL = [bold, 'Missing_SPL', normal, ': List of all sennsors that have missing SPL SPL file that']
+    textFull = [bold, 'Full_List', normal, ': Full log list of all sensors without duplicated and skip files. (Sensors Not Transposed)']
+    textTrans = [bold, 'List_Transposed', normal, ': Log list of all sensors transposed and matching all sessions)']
+    textMissingSPL = [bold, 'Missing_SPL', normal, ': List of all sensors that have missing SPL file.']
     textMBES = [bold, 'MBES_NotMatching', normal, ': MBES log list of all files that do not match the SPL name; without duplicated and skip files']
     textSSS = [bold, 'SSS_NotMatching', normal, ': SSS log list of all files that do not match the SPL name; without duplicated and skip files']
     textSBP = [bold, 'SBP_NotMatching', normal, ': SBP log list of all files that do not match the SPL name; without duplicated and skip files']
@@ -165,12 +180,12 @@ def process(args):
     textSkip = [bold, 'Skip_SSS_Files', normal, ': List of all SSS data that have a file size less than 1 MB']
     textsgy = [bold, 'Wrong_SBP_Time', normal, ': List of all SBP data that have a wrong timestamp']
 
-    ListT = [textFull, textMissingSPL, textMBES, textSSS, textSBP, textMAG, textSUHRS, textDuplSPL, textDuplSensor, 
-            textSPLProblem, textSkip, textsgy]
-    ListHL = ['internal:Full_List!A1', 'internal:Missing_SPL!A1', 'internal:MBES_NotMatching!A1', 
-            'internal:SSS_NotMatching!A1', 'internal:SBP_NotMatching!A1', 'internal:MAG_NotMatching!A1',
-            'internal:SUHRS_NotMatching!A1','internal:Duplicated_SPL_Name!A1', 'internal:Duplicated_Sensor_Data!A1', 
-            'internal:SPL_Problem!A1', 'internal:Skip_SSS_Files!A1', 'internal:Wrong_SBP_Time!A1']
+    ListT = [textFull, textTrans, textMissingSPL, textMBES, textSSS, textSBP, textMAG, textSUHRS, textDuplSPL, textDuplSensor, 
+             textSPLProblem, textSkip, textsgy]
+    ListHL = ['internal:Full_List!A1', 'internal:List_Transposed!A1', 'internal:Missing_SPL!A1', 
+              'internal:MBES_NotMatching!A1', 'internal:SSS_NotMatching!A1', 'internal:SBP_NotMatching!A1', 'internal:MAG_NotMatching!A1',
+              'internal:SUHRS_NotMatching!A1','internal:Duplicated_SPL_Name!A1', 'internal:Duplicated_Sensor_Data!A1', 
+              'internal:SPL_Problem!A1', 'internal:Skip_SSS_Files!A1', 'internal:Wrong_SBP_Time!A1']
                 
     icount = 1
     for e, l in zip(ListT,ListHL):
@@ -184,14 +199,35 @@ def process(args):
             ws.write_url(0, 0, 'internal:Summary_Process_Log!A1', hlink, string='Summary')
 
     for (namedf, df), (namews, ws) in zip(d.items(), w.items()):
-        if namedf != 'Summary_Process_Log':
-            ws.autofilter(0, 0, df.shape[0], df.shape[1])
-            ws.set_column(0, 0, 15, cell_format)
-            ws.set_column(1, 4, 24, cell_format)
-            ws.set_column(5, df.shape[1], 50, cell_format)
+        if namews != 'Summary_Process_Log':
+            list1 = ['List_Transposed', 'Missing_SPL', 'MBES_NotMatching', 'SSS_NotMatching', 'SBP_NotMatching', 'MAG_NotMatching', 'SUHRS_NotMatching']
+            list2 = ['Missing_SPL', 'Skip_SSS_Files', 'Duplicated_Sensor_Data', 'Wrong_SBP_Time']
             for col_num, value in enumerate(df.columns.values):
                 ws.set_row(0, 25)
-                ws.write(0, col_num + 1, value, header_format)
+                ws.write(0, col_num + 1, value, header_format)                
+            if namews == 'Full_List':                
+                ws.autofilter(0, 0, df.shape[0], df.shape[1])
+                ws.set_column(0, 0, 11, cell_format) # ID
+                ws.set_column(df.columns.get_loc('Sensor Start')+1, df.columns.get_loc('Session End')+1, 24, cell_format) # DateTime
+                ws.set_column(df.columns.get_loc('Session Name')+1, df.columns.get_loc('Session Name')+1, 20, session_format) # Session Name
+                ws.set_column(df.columns.get_loc('Session MaxGap')+1, df.columns.get_loc('Vessel Name')+1, 20, cell_format) # Session Info
+                ws.set_column(df.columns.get_loc('FilePath')+1, df.columns.get_loc('FilePath')+1, 150, cell_format)
+                ws.set_column(df.columns.get_loc('Sensor FileName')+1, df.columns.get_loc('Sensor FileName')+1, 50, cell_format)
+                ws.set_column(df.columns.get_loc('SPL LineName')+1, df.columns.get_loc('SPL LineName')+1, 20, cell_format)
+                ws.set_column(df.columns.get_loc('SPL LineName')+2, df.shape[1], 150, cell_format) # SPL Name
+            elif namews in list2:                
+                ws.autofilter(0, 0, df.shape[0], df.shape[1])
+                ws.set_column(0, 0, 11, cell_format) # ID
+                ws.set_column(1, df.shape[1], 50, cell_format) 
+                #ws.set_column(3, df.shape[1], 150, cell_format) # Path
+            elif namews in list1:
+                ws.autofilter(0, 0, df.shape[0], df.shape[1])
+                ws.set_column(0, 0, 11, cell_format) # ID
+                ws.set_column(df.columns.get_loc('Session Start')+1, df.columns.get_loc('Session End')+1, 22, cell_format) # DateTime
+                ws.set_column(df.columns.get_loc('Session Name')+1, df.columns.get_loc('Session Name')+1, 20, session_format) # Session Name
+                ws.set_column(df.columns.get_loc('Session MaxGap')+1, df.columns.get_loc('SPL')+1, 20, cell_format) # Session Info
+                ws.set_column(df.columns.get_loc('SPL')+2, df.shape[1], 50, cell_format) # Sensors   
+                
     #    for i, width in enumerate(get_col_widths(df)): # Autosize will not work because of the "\n" in the text
     #        ws.set_column(i, i, width, cell_format)
 
@@ -208,38 +244,77 @@ def process(args):
                                 'font_color': '#FFFFFF'})
 
     # Highlight the values (first is overwrite the others below.....)
-    ListFC = [w['Full_List'], w['MBES_NotMatching'], w['SSS_NotMatching'], w['SBP_NotMatching'], w['MAG_NotMatching'], w['SUHRS_NotMatching']]
+    FMaxGap_start = xl_rowcol_to_cell(1, d['Full_List'].columns.get_loc('Session MaxGap')+1, row_abs=True, col_abs=True)
+    FMaxGap_end = xl_rowcol_to_cell(d['Full_List'].shape[0]+1, d['Full_List'].columns.get_loc('Session MaxGap')+1, row_abs=True, col_abs=True)
+    w['Full_List'].conditional_format('%s:%s' % (FMaxGap_start, FMaxGap_end), {'type':     'cell',
+                                                                          'criteria': 'greater than or equal to',
+                                                                          'value':    1,
+                                                                          'format':   fWRONG})
+    
+    FDiff_start = xl_rowcol_to_cell(1, d['Full_List'].columns.get_loc('Difference Start [s]')+1, row_abs=True, col_abs=True)
+    FDiff_end = xl_rowcol_to_cell(d['Full_List'].shape[0]+1, d['Full_List'].columns.get_loc('Difference Start [s]')+1, row_abs=True, col_abs=True)
+    w['Full_List'].conditional_format('%s:%s' % (FDiff_start, FDiff_end), {'type':     'cell',
+                                                                          'criteria': 'greater than',
+                                                                          'value':    0,
+                                                                          'format':   fWRONG})
+    
+    FFilename_start = xl_rowcol_to_cell(1, d['Full_List'].columns.get_loc('Sensor FileName')+1, row_abs=True, col_abs=True)
+    FFilename_end = xl_rowcol_to_cell(d['Full_List'].shape[0]+1, d['Full_List'].columns.get_loc('Sensor FileName')+1, row_abs=True, col_abs=True)
+    w['Full_List'].conditional_format('%s:%s' % (FFilename_start, FFilename_end), {'type': 'text',
+                                                                                    'criteria': 'containing',
+                                                                                    'value':    '[WRONG]',
+                                                                                    #'criteria': '=NOT(ISNUMBER(SEARCH($E2,F2)))',
+                                                                                    'format': fWRONG})
+    w['Full_List'].conditional_format('%s:%s' % (FFilename_start, FFilename_end), {'type': 'text',
+                                                                                    'criteria': 'containing',
+                                                                                    'value':    '[OK]',
+                                                                                    'format': fOK})
+    
+    ListFC = [w['List_Transposed'], w['MBES_NotMatching'], w['SSS_NotMatching'], w['SBP_NotMatching'], 
+              w['MAG_NotMatching'], w['SUHRS_NotMatching']]
 
-    # use the bigger df 
-    color_range1 = "E2:E{}".format(d['Full_List'].shape[0]+1)
-    color_range2 = "F2:J{}".format(d['Full_List'].shape[0]+1)
-
+    # Define our range for the color formatting
+    MaxGap_start = xl_rowcol_to_cell(1, d['List_Transposed'].columns.get_loc('Session MaxGap')+1, row_abs=True, col_abs=True)
+    MaxGap_end = xl_rowcol_to_cell(d['List_Transposed'].shape[0]+1, d['List_Transposed'].columns.get_loc('Session MaxGap')+1, row_abs=True, col_abs=True)
+    
+    SPL_start = xl_rowcol_to_cell(1, d['List_Transposed'].columns.get_loc('SPL')+1, row_abs=True, col_abs=True)
+    SPL_end = xl_rowcol_to_cell(d['List_Transposed'].shape[0]+1, d['List_Transposed'].columns.get_loc('SPL')+1, row_abs=True, col_abs=True)
+    
+    Sensors_start = xl_rowcol_to_cell(1, d['List_Transposed'].columns.get_loc('SPL')+2, row_abs=True, col_abs=True)
+    Sensors_end = xl_rowcol_to_cell(d['List_Transposed'].shape[0]+1, d['List_Transposed'].shape[1], row_abs=True, col_abs=True)
+    
     for i in ListFC:
-        i.conditional_format(color_range1, {'type': 'text',
-                                            'criteria': 'containing',
-                                            'value':    'SPLtoSmall',
-                                            'format': fWSPL})
-        i.conditional_format(color_range1, {'type': 'text',
-                                            'criteria': 'containing',
-                                            'value':    'NoLineNameFound',
-                                            'format': fWSPL})
-        i.conditional_format(color_range1, {'type': 'text',
-                                            'criteria': 'containing',
-                                            'value':    'EmptySPL',
-                                            'format': fWSPL})
-        i.conditional_format(color_range1, {'type': 'duplicate',
-                                            'format': fDUPL})
-        i.conditional_format(color_range2, {'type': 'blanks',
-                                            'format': fBLANK})
-        i.conditional_format(color_range2, {'type': 'text',
-                                            'criteria': 'containing',
-                                            'value':    '[WRONG]',
-                                            #'criteria': '=NOT(ISNUMBER(SEARCH($E2,F2)))',
-                                            'format': fWRONG})
-        i.conditional_format(color_range2, {'type': 'text',
-                                            'criteria': 'containing',
-                                            'value':    '[OK]',
-                                            'format': fOK}) 
+        i.conditional_format('%s:%s' % (MaxGap_start, MaxGap_end), {'type':     'cell',
+                                                                    'criteria': 'greater than or equal to',
+                                                                    'value':    1,
+                                                                    'format':   fWRONG})
+        
+        i.conditional_format('%s:%s' % (SPL_start, SPL_end), {'type': 'text',
+                                                                'criteria': 'containing',
+                                                                'value':    'SPLtoSmall',
+                                                                'format': fWSPL})
+        i.conditional_format('%s:%s' % (SPL_start, SPL_end), {'type': 'text',
+                                                                'criteria': 'containing',
+                                                                'value':    'NoLineNameFound',
+                                                                'format': fWSPL})
+        i.conditional_format('%s:%s' % (SPL_start, SPL_end), {'type': 'text',
+                                                                'criteria': 'containing',
+                                                                'value':    'EmptySPL',
+                                                                'format': fWSPL})
+        i.conditional_format('%s:%s' % (SPL_start, SPL_end), {'type': 'duplicate',
+                                                                'format': fDUPL})
+        
+        i.conditional_format('%s:%s' % (Sensors_start, Sensors_end), {'type': 'blanks',
+                                                                        'format': fBLANK})
+        i.conditional_format('%s:%s' % (Sensors_start, Sensors_end), {'type': 'text',
+                                                                        'criteria': 'containing',
+                                                                        'value':    '[WRONG]',
+                                                                        #'criteria': '=NOT(ISNUMBER(SEARCH($E2,F2)))',
+                                                                        'format': fWRONG})
+        i.conditional_format('%s:%s' % (Sensors_start, Sensors_end), {'type': 'text',
+                                                                        'criteria': 'containing',
+                                                                        'value':    '[OK]',
+                                                                        'format': fOK}) 
 
     # Close the Pandas Excel writer and output the Excel file.
     writer.save() 
@@ -258,10 +333,6 @@ def combine_excel_to_dfs(excel_names, sheet_name):
 ########################################################## 
 if __name__ == "__main__":
     now = datetime.datetime.now() # time the process
-    # Preparing your script for packaging https://chriskiehl.com/article/packaging-gooey-with-pyinstaller
-    # Prevent stdout buffering     
-    #nonbuffered_stdout = os.fdopen(sys.stdout.fileno(), 'w') #https://stackoverflow.com/questions/45263064/how-can-i-fix-this-valueerror-cant-have-unbuffered-text-i-o-in-python-3/45263101
-    #sys.stdout = nonbuffered_stdout
     main()
     print('')
     print("Process Duration: ", (datetime.datetime.now() - now)) # print the processing time. It is handy to keep an eye on processing performance.
