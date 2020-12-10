@@ -20,7 +20,6 @@ from xlsxwriter.utility import xl_rowcol_to_cell
 
 ##### GUI packages #####
 from gooey import Gooey, GooeyParser
-from colored import stylize, attr, fg
 
 # 417574686f723a205061747269636520506f6e6368616e74
 ##########################################################
@@ -38,6 +37,18 @@ if len(sys.argv) >= 2:
 # Prevent stdout buffering     
 #nonbuffered_stdout = os.fdopen(sys.stdout.fileno(), 'w', 0) #https://stackoverflow.com/questions/45263064/how-can-i-fix-this-valueerror-cant-have-unbuffered-text-i-o-in-python-3/45263101
 #sys.stdout = nonbuffered_stdout
+
+class Unbuffered(object):
+   def __init__(self, stream):
+       self.stream = stream
+   def write(self, data):
+       self.stream.write(data)
+       self.stream.flush()
+   def writelines(self, datas):
+       self.stream.writelines(datas)
+       self.stream.flush()
+   def __getattr__(self, attr):
+       return getattr(self.stream, attr)
 
 # GUI Configuration
 @Gooey(
@@ -61,7 +72,7 @@ if len(sys.argv) >= 2:
                 'menuTitle': 'About',
                 'name': 'mergexlsx-spl',
                 'description': 'Merge XLSX from the splsensors tool',
-                'version': '0.2.0',
+                'version': '0.2.1',
                 'copyright': '2020',
                 'website': 'https://github.com/Shadoward/mergexlsx-spl',
                 'developer': 'patrice.ponchant@fugro.com',
@@ -200,8 +211,8 @@ def process(args):
 
     for (namedf, df), (namews, ws) in zip(d.items(), w.items()):
         if namews != 'Summary_Process_Log':
-            list1 = ['List_Transposed', 'Missing_SPL', 'MBES_NotMatching', 'SSS_NotMatching', 'SBP_NotMatching', 'MAG_NotMatching', 'SUHRS_NotMatching']
-            list2 = ['Missing_SPL', 'Skip_SSS_Files', 'Duplicated_Sensor_Data', 'Wrong_SBP_Time']
+            list1 = ['List_Transposed', 'MBES_NotMatching', 'SSS_NotMatching', 'SBP_NotMatching', 'MAG_NotMatching', 'SUHRS_NotMatching']
+            list2 = ['Skip_SSS_Files', 'Duplicated_Sensor_Data', 'Wrong_SBP_Time']
             for col_num, value in enumerate(df.columns.values):
                 ws.set_row(0, 25)
                 ws.write(0, col_num + 1, value, header_format)                
@@ -210,11 +221,18 @@ def process(args):
                 ws.set_column(0, 0, 11, cell_format) # ID
                 ws.set_column(df.columns.get_loc('Sensor Start')+1, df.columns.get_loc('Session End')+1, 24, cell_format) # DateTime
                 ws.set_column(df.columns.get_loc('Session Name')+1, df.columns.get_loc('Session Name')+1, 20, session_format) # Session Name
-                ws.set_column(df.columns.get_loc('Session MaxGap')+1, df.columns.get_loc('Vessel Name')+1, 20, cell_format) # Session Info
+                ws.set_column(df.columns.get_loc('Session MaxGap')+1, df.columns.get_loc('Sensor Type')+1, 20, cell_format) # Session Info
                 ws.set_column(df.columns.get_loc('FilePath')+1, df.columns.get_loc('FilePath')+1, 150, cell_format)
                 ws.set_column(df.columns.get_loc('Sensor FileName')+1, df.columns.get_loc('Sensor FileName')+1, 50, cell_format)
                 ws.set_column(df.columns.get_loc('SPL LineName')+1, df.columns.get_loc('SPL LineName')+1, 20, cell_format)
                 ws.set_column(df.columns.get_loc('SPL LineName')+2, df.shape[1], 150, cell_format) # SPL Name
+            elif namews == 'Missing_SPL':
+                ws.autofilter(0, 0, df.shape[0], df.shape[1])
+                ws.set_column(0, 0, 11, cell_format) # ID
+                ws.set_column(df.columns.get_loc('Sensor Start')+1, df.columns.get_loc('Sensor Start')+1, 24, cell_format)
+                ws.set_column(df.columns.get_loc('Sensor FileName')+1, df.columns.get_loc('Sensor FileName')+1, 50, cell_format)
+                ws.set_column(df.columns.get_loc('Sensor Type')+1, df.columns.get_loc('Vessel Name')+1, 24, session_format)
+                ws.set_column(df.columns.get_loc('FilePath')+1, df.columns.get_loc('FilePath')+1, 150, cell_format)              
             elif namews in list2:                
                 ws.autofilter(0, 0, df.shape[0], df.shape[1])
                 ws.set_column(0, 0, 11, cell_format) # ID
@@ -332,6 +350,7 @@ def combine_excel_to_dfs(excel_names, sheet_name):
 #                        __main__                        #
 ########################################################## 
 if __name__ == "__main__":
+    sys.stdout = Unbuffered(sys.stdout)
     now = datetime.datetime.now() # time the process
     main()
     print('')
