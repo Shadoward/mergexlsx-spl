@@ -12,6 +12,7 @@ with open('LICENSE') as f:
 install_requires = [
     'pandas',
     'glob3',
+    'gooey',
 ]
 
 extras_require = {
