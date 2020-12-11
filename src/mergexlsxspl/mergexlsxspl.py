@@ -1,3 +1,4 @@
+#!/usr/bin/env python -u
 # -*- coding: utf-8 -*-
 ###############################################################
 # Author:       patrice.ponchant@furgo.com  (Fugro Brasil)    #
@@ -34,21 +35,7 @@ if len(sys.argv) >= 2:
         sys.argv.append('--ignore-gooey')
         
 # Preparing your script for packaging https://chriskiehl.com/article/packaging-gooey-with-pyinstaller
-# Prevent stdout buffering     
-#nonbuffered_stdout = os.fdopen(sys.stdout.fileno(), 'w', 0) #https://stackoverflow.com/questions/45263064/how-can-i-fix-this-valueerror-cant-have-unbuffered-text-i-o-in-python-3/45263101
-#sys.stdout = nonbuffered_stdout
-
-class Unbuffered(object):
-   def __init__(self, stream):
-       self.stream = stream
-   def write(self, data):
-       self.stream.write(data)
-       self.stream.flush()
-   def writelines(self, datas):
-       self.stream.writelines(datas)
-       self.stream.flush()
-   def __getattr__(self, attr):
-       return getattr(self.stream, attr)
+# Prevent stdout buffering # https://github.com/chriskiehl/Gooey/issues/289
 
 # GUI Configuration
 @Gooey(
@@ -110,8 +97,8 @@ def process(args):
     inputFolder = args.inputFolder
     excel_names = glob.glob(inputFolder + '\\*_Log.xlsx')
     
-    print('')
-    print(f'Merging the following files.\n {excel_names}\nPlease wait.......')
+    print('', flush=True)
+    print(f'Merging the following files.\n {excel_names}\nPlease wait.......', flush=True)
 
     xl = pd.ExcelFile(excel_names[0])
     d = {name: combine_excel_to_dfs(excel_names, name) for name in xl.sheet_names}
@@ -350,8 +337,7 @@ def combine_excel_to_dfs(excel_names, sheet_name):
 #                        __main__                        #
 ########################################################## 
 if __name__ == "__main__":
-    sys.stdout = Unbuffered(sys.stdout)
     now = datetime.datetime.now() # time the process
     main()
-    print('')
-    print("Process Duration: ", (datetime.datetime.now() - now)) # print the processing time. It is handy to keep an eye on processing performance.
+    print('', flush=True)
+    print("Process Duration: ", (datetime.datetime.now() - now), flush=True) # print the processing time. It is handy to keep an eye on processing performance.

@@ -39,7 +39,7 @@ setup(
     package_dir={'': 'src'},
     keywords='XLXS Merge Logs SPLTool',
     classifiers=[
-        'Development Status :: 4 - Beta',
+        'Development Status :: 2 - Beta',
         'Natural Language :: English',
         'Topic :: Scientific/Engineering'
         "Programming Language :: Python :: 3",
