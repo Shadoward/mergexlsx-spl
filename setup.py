@@ -13,6 +13,7 @@ install_requires = [
     'pandas',
     'glob3',
     'gooey',
+    'openpyxl',
 ]
 
 extras_require = {
@@ -24,7 +25,7 @@ extras_require = {
 
 setup(
     name='mergexlsxspl',
-    version='0.2.1',
+    version='0.2.2',
     description='Merge XLSX from the splsensors tool',
     long_description=readme,
     author='Patrice Ponchant',

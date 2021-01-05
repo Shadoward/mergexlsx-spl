@@ -59,7 +59,7 @@ if len(sys.argv) >= 2:
                 'menuTitle': 'About',
                 'name': 'mergexlsx-spl',
                 'description': 'Merge XLSX from the splsensors tool',
-                'version': '0.2.1',
+                'version': '0.2.2',
                 'copyright': '2020',
                 'website': 'https://github.com/Shadoward/mergexlsx-spl',
                 'developer': 'patrice.ponchant@fugro.com',
@@ -100,8 +100,8 @@ def process(args):
     print('', flush=True)
     print(f'Merging the following files.\n {excel_names}\nPlease wait.......', flush=True)
 
-    xl = pd.ExcelFile(excel_names[0])
-    d = {name: combine_excel_to_dfs(excel_names, name) for name in xl.sheet_names}
+    xl = pd.read_excel(excel_names[0], sheet_name=None, engine='openpyxl')
+    d = {name: combine_excel_to_dfs(excel_names, name) for name in xl.keys()}
     d['Summary_Process_Log'] = pd.DataFrame()
     
     # Create a Pandas Excel writer using XlsxWriter as the engine.
@@ -117,7 +117,7 @@ def process(args):
     for name, df in d.items():
         df.to_excel(writer, sheet_name=name)
 
-    w = {name: writer.sheets[name] for name in xl.sheet_names}
+    w = {name: writer.sheets[name] for name in xl.keys()}
     w['Summary_Process_Log'].hide_gridlines(2) 
 
     #### Set format       
@@ -166,6 +166,7 @@ def process(args):
 
     textFull = [bold, 'Full_List', normal, ': Full log list of all sensors without duplicated and skip files. (Sensors Not Transposed)']
     textTrans = [bold, 'List_Transposed', normal, ': Log list of all sensors transposed and matching all sessions)']
+    textRename = [bold, 'Rename_LN', normal, ': Rename Sheet to be use if you just want to use the LineName option in the rename tool.)']
     textMissingSPL = [bold, 'Missing_SPL', normal, ': List of all sensors that have missing SPL file.']
     textMBES = [bold, 'MBES_NotMatching', normal, ': MBES log list of all files that do not match the SPL name; without duplicated and skip files']
     textSSS = [bold, 'SSS_NotMatching', normal, ': SSS log list of all files that do not match the SPL name; without duplicated and skip files']
@@ -178,9 +179,9 @@ def process(args):
     textSkip = [bold, 'Skip_SSS_Files', normal, ': List of all SSS data that have a file size less than 1 MB']
     textsgy = [bold, 'Wrong_SBP_Time', normal, ': List of all SBP data that have a wrong timestamp']
 
-    ListT = [textFull, textTrans, textMissingSPL, textMBES, textSSS, textSBP, textMAG, textSUHRS, textDuplSPL, textDuplSensor, 
+    ListT = [textFull, textTrans, textRename, textMissingSPL, textMBES, textSSS, textSBP, textMAG, textSUHRS, textDuplSPL, textDuplSensor, 
              textSPLProblem, textSkip, textsgy]
-    ListHL = ['internal:Full_List!A1', 'internal:List_Transposed!A1', 'internal:Missing_SPL!A1', 
+    ListHL = ['internal:Full_List!A1', 'internal:List_Transposed!A1', 'internal:Rename_LN!A1', 'internal:Missing_SPL!A1', 
               'internal:MBES_NotMatching!A1', 'internal:SSS_NotMatching!A1', 'internal:SBP_NotMatching!A1', 'internal:MAG_NotMatching!A1',
               'internal:SUHRS_NotMatching!A1','internal:Duplicated_SPL_Name!A1', 'internal:Duplicated_Sensor_Data!A1', 
               'internal:SPL_Problem!A1', 'internal:Skip_SSS_Files!A1', 'internal:Wrong_SBP_Time!A1']
@@ -219,7 +220,15 @@ def process(args):
                 ws.set_column(df.columns.get_loc('Sensor Start')+1, df.columns.get_loc('Sensor Start')+1, 24, cell_format)
                 ws.set_column(df.columns.get_loc('Sensor FileName')+1, df.columns.get_loc('Sensor FileName')+1, 50, cell_format)
                 ws.set_column(df.columns.get_loc('Sensor Type')+1, df.columns.get_loc('Vessel Name')+1, 24, session_format)
-                ws.set_column(df.columns.get_loc('FilePath')+1, df.columns.get_loc('FilePath')+1, 150, cell_format)              
+                ws.set_column(df.columns.get_loc('FilePath')+1, df.columns.get_loc('FilePath')+1, 150, cell_format) 
+            elif namews == 'Rename_LN':
+                ws.autofilter(0, 0, df.shape[0], df.shape[1])
+                ws.set_column(0, 0, 11, cell_format) # ID
+                ws.set_column(df.columns.get_loc('Sensor Start')+1, df.columns.get_loc('Sensor Start')+1, 24, cell_format)
+                ws.set_column(df.columns.get_loc('Sensor FileName')+1, df.columns.get_loc('New LineName')+1, 50, cell_format)
+                ws.set_column(df.columns.get_loc('SPL LineName')+1, df.columns.get_loc('SPL LineName')+1, 20, cell_format)
+                ws.set_column(df.columns.get_loc('Sensor Type')+1, df.columns.get_loc('Vessel Name')+1, 24, session_format)
+                ws.set_column(df.columns.get_loc('FilePath')+1, df.columns.get_loc('FilePath')+1, 150, cell_format)            
             elif namews in list2:                
                 ws.autofilter(0, 0, df.shape[0], df.shape[1])
                 ws.set_column(0, 0, 11, cell_format) # ID
@@ -327,7 +336,7 @@ def process(args):
 
 # https://stackoverflow.com/questions/48780464/how-to-combine-multiple-excel-files-having-multiple-equal-number-of-sheets-in-ea
 def combine_excel_to_dfs(excel_names, sheet_name):
-    sheet_frames = [pd.read_excel(x, sheet_name=sheet_name) for x in excel_names]
+    sheet_frames = [pd.read_excel(x, sheet_name=sheet_name, engine='openpyxl') for x in excel_names]
     combined_df = pd.concat(sheet_frames)
     combined_df = combined_df.drop(combined_df.columns[0], axis=1)
     return combined_df
